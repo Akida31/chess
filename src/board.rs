@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt;
+
+use crate::board::Color::White;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 enum Piece {
@@ -90,16 +91,29 @@ impl Player {
     }
 }
 
+struct Move<'a> {
+    player: &'a Color,
+    start: (u8, u8),
+    end: (u8, u8),
+}
+
+impl Move<'_> {
+    fn new(player: &Color, start: (u8, u8), end: (u8, u8)) -> Move {
+        Move { player, start, end }
+    }
+}
+
 #[derive(Debug)]
 pub struct Board {
     fields: Vec<Vec<Field>>,
     players: [Player; 2],
+    current_player: Color,
 }
 
 impl Board {
     pub fn new(player_name1: String, player_name2: String, time: u16) -> Board {
         let mut fields = vec![vec![Field::empty(); 8]; 8];
-        fields[0] = vec![
+        let pieces = vec![
             Piece::Rook,
             Piece::Knight,
             Piece::Bishop,
@@ -108,36 +122,30 @@ impl Board {
             Piece::Bishop,
             Piece::Knight,
             Piece::Rook,
-        ]
-        .into_iter()
-        .map(|x| Field::new(Some(x), Some(Color::Black)))
-        .collect();
+        ];
+        fields[0] = pieces
+            .clone()
+            .into_iter()
+            .map(|x| Field::new(Some(x), Some(Color::Black)))
+            .collect();
         fields[1] = vec![Field::new(Some(Piece::Pawn), Some(Color::Black)); 8];
         fields[6] = vec![Field::new(Some(Piece::Pawn), Some(Color::White)); 8];
-        fields[7] = vec![
-            Piece::Rook,
-            Piece::Knight,
-            Piece::Bishop,
-            Piece::King,
-            Piece::Queen,
-            Piece::Bishop,
-            Piece::Knight,
-            Piece::Rook,
-        ]
-        .into_iter()
-        .map(|x| Field::new(Some(x), Some(Color::White)))
-        .collect();
+        fields[7] = pieces
+            .into_iter()
+            .map(|x| Field::new(Some(x), Some(Color::White)))
+            .collect();
         Board {
             fields,
             players: [
                 Player::new(player_name1, time),
                 Player::new(player_name2, time),
             ],
+            current_player: White,
         }
     }
 
     pub fn show(&self) {
-        println!("   ABCDEFGHI");
+        println!("   ABCDEFGH");
         for (i, row) in self.fields.iter().enumerate() {
             print!("{}. ", i + 1);
             for field in row {
@@ -147,30 +155,46 @@ impl Board {
         }
     }
 
-    fn check_move(&self, piece: Piece, start: u8, end: u8) -> bool {
-        true
+    fn check_move(&self, the_move: Move) -> bool {
+        the_move.start.1 < 8 && the_move.end.1 < 8
     }
 
-    pub fn move_piece(&mut self, the_move: String) -> Result<(), ()> {
+    pub fn move_piece(&mut self, the_move: String) -> Result<(), &str> {
         if the_move.len() != 4 {
-            return Err(());
+            return Err("invalid move format");
         }
-        let mut chars = the_move.chars();
-
-        let start_y = match chars.nth(1) {
-            Some(x) => match x.to_digit(10) {
-                Some(c) => c,
-                None => return Err(()),
-            },
-            None => return Err(()),
+        let mut chars = the_move.to_lowercase();
+        let mut chars = chars.chars();
+        let letters = "abcdefgh";
+        let start_x = match letters.chars().position(|x| Some(x) == chars.nth(0)) {
+            Some(c) => c as u8,
+            None => return Err("piece not found"),
         };
-        let end_y = match chars.nth(3) {
+        let start_y = match chars.next() {
             Some(x) => match x.to_digit(10) {
-                Some(c) => c,
-                None => return Err(()),
+                Some(c) => (c - 1) as u8,
+                None => return Err("invalid move format"),
             },
-            None => return Err(()),
+            None => return Err("invalid move format"),
         };
+        let end_x = match letters.chars().position(|x| Some(x) == chars.next()) {
+            Some(c) => c as u8,
+            None => return Err("piece not found"),
+        };
+        let end_y = match chars.next() {
+            Some(x) => match x.to_digit(10) {
+                Some(c) => (c - 1) as u8,
+                None => return Err("invalid move format"),
+            },
+            None => return Err("invalid move format"),
+        };
+        if !self.check_move(Move::new(&self.current_player, (start_x, start_y), (end_x, end_y))) {
+            return Err("move not allowed");
+        }
+        let start_x = start_x as usize;
+        let start_y = start_y as usize;
+        self.fields[end_y as usize][end_x as usize] = self.fields[start_y][start_x].clone();
+        self.fields[start_y][start_x] = Field::empty();
         Ok(())
     }
 }
