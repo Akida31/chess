@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::board::Color::White;
+use crate::board::Color::{Black, White};
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum Piece {
     King,
     Queen,
@@ -25,22 +25,22 @@ struct Field {
     color: Option<Color>,
 }
 
-impl Field {
+impl fmt::Display for Field {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut pieces_white: HashMap<Piece, &str> = HashMap::new();
-        pieces_white.insert(Piece::King, "♔");
-        pieces_white.insert(Piece::Queen, "♕");
-        pieces_white.insert(Piece::Rook, "♖");
-        pieces_white.insert(Piece::Bishop, "♗");
-        pieces_white.insert(Piece::Knight, "♘");
-        pieces_white.insert(Piece::Pawn, "♙");
+        pieces_white.insert(Piece::King, "♚");
+        pieces_white.insert(Piece::Queen, "♛");
+        pieces_white.insert(Piece::Rook, "♜");
+        pieces_white.insert(Piece::Bishop, "♝");
+        pieces_white.insert(Piece::Knight, "♞");
+        pieces_white.insert(Piece::Pawn, "♟");
         let mut pieces_black: HashMap<Piece, &str> = HashMap::new();
-        pieces_black.insert(Piece::King, "♚");
-        pieces_black.insert(Piece::Queen, "♛");
-        pieces_black.insert(Piece::Rook, "♜");
-        pieces_black.insert(Piece::Bishop, "♝");
-        pieces_black.insert(Piece::Knight, "♞");
-        pieces_black.insert(Piece::Pawn, "♟");
+        pieces_black.insert(Piece::King, "♔");
+        pieces_black.insert(Piece::Queen, "♕");
+        pieces_black.insert(Piece::Rook, "♖");
+        pieces_black.insert(Piece::Bishop, "♗");
+        pieces_black.insert(Piece::Knight, "♘");
+        pieces_black.insert(Piece::Pawn, "♙");
         let mut pieces: HashMap<Color, HashMap<Piece, &str>> = HashMap::new();
         pieces.insert(Color::White, pieces_white);
         pieces.insert(Color::Black, pieces_black);
@@ -51,15 +51,9 @@ impl Field {
     }
 }
 
-impl fmt::Display for Field {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt(f)
-    }
-}
-
 impl fmt::Debug for Field {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.fmt(f)
+        write!(f, "{:?}, {:?}", self.color, self.piece)
     }
 }
 
@@ -147,54 +141,84 @@ impl Board {
     pub fn show(&self) {
         println!("   ABCDEFGH");
         for (i, row) in self.fields.iter().enumerate() {
-            print!("{}. ", i + 1);
+            print!("{}. ", 8 - i);
             for field in row {
-                print!("{:#?}", field);
+                print!("{}", field);
             }
             println!();
         }
+        println!("Current Player: {:?}", self.current_player);
     }
 
     fn check_move(&self, the_move: Move) -> bool {
-        the_move.start.1 < 8 && the_move.end.1 < 8
+        if !(the_move.start.0 < 8
+            && the_move.end.0 < 8
+            && the_move.start.1 < 8
+            && the_move.end.1 < 8)
+        {
+            return false;
+        }
+        let field = &self.fields[the_move.start.1 as usize][the_move.start.0 as usize];
+        if !(Some(the_move.player) == field.color.as_ref() && field.piece != None) {
+            return false;
+        }
+        match field.piece.as_ref().unwrap() {
+            Piece::Pawn => {
+                the_move.start.0 == the_move.end.0
+                    && ((the_move.start.1 as i8 - the_move.end.1 as i8).abs() == 1
+                    || ((the_move.start.1 == 1 || the_move.start.1 == 6)
+                    && (the_move.start.1 as i8 - the_move.end.1 as i8).abs() == 2))
+            }
+            _ => true
+        }
     }
 
     pub fn move_piece(&mut self, the_move: String) -> Result<(), &str> {
         if the_move.len() != 4 {
             return Err("invalid move format");
         }
-        let mut chars = the_move.to_lowercase();
+        let chars = the_move.to_lowercase();
         let mut chars = chars.chars();
         let letters = "abcdefgh";
-        let start_x = match letters.chars().position(|x| Some(x) == chars.nth(0)) {
+        let char = chars.next();
+        let start_x = match letters.chars().position(|x| Some(x) == char) {
             Some(c) => c as u8,
             None => return Err("piece not found"),
         };
         let start_y = match chars.next() {
             Some(x) => match x.to_digit(10) {
-                Some(c) => (c - 1) as u8,
+                Some(c) => (8 - c) as u8,
                 None => return Err("invalid move format"),
             },
             None => return Err("invalid move format"),
         };
-        let end_x = match letters.chars().position(|x| Some(x) == chars.next()) {
+        let char = chars.next();
+        let end_x = match letters.chars().position(|x| Some(x) == char) {
             Some(c) => c as u8,
             None => return Err("piece not found"),
         };
         let end_y = match chars.next() {
             Some(x) => match x.to_digit(10) {
-                Some(c) => (c - 1) as u8,
+                Some(c) => (8 - c) as u8,
                 None => return Err("invalid move format"),
             },
             None => return Err("invalid move format"),
         };
-        if !self.check_move(Move::new(&self.current_player, (start_x, start_y), (end_x, end_y))) {
+        if !self.check_move(Move::new(
+            &self.current_player,
+            (start_x, start_y),
+            (end_x, end_y),
+        )) {
             return Err("move not allowed");
         }
         let start_x = start_x as usize;
         let start_y = start_y as usize;
         self.fields[end_y as usize][end_x as usize] = self.fields[start_y][start_x].clone();
         self.fields[start_y][start_x] = Field::empty();
+        self.current_player = match self.current_player {
+            White => Black,
+            Black => White,
+        };
         Ok(())
     }
 }
