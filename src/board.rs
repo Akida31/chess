@@ -126,7 +126,10 @@ impl Board {
 
     pub fn show(&self) {
         // TODO show the time of the players
-        println!("Players:\n  White: {}\n  Black: {}", self.players[0].name, self.players[1].name);
+        println!(
+            "Players:\n  White: {}\n  Black: {}",
+            self.players[0].name, self.players[1].name
+        );
         println!("Board:\n   ABCDEFGH");
         for (i, row) in self.fields.iter().enumerate() {
             print!("{}. ", 8 - i);
@@ -158,6 +161,11 @@ impl Board {
         if the_move.player != &(field.color) {
             return false;
         }
+        let diff_x = (the_move.start.0 as i8 - the_move.end.0 as i8).abs();
+        let diff_y = (the_move.start.1 as i8 - the_move.end.1 as i8).abs();
+        if diff_y == 0 && diff_x == 0 {
+            return false;
+        }
         match field.piece {
             Piece::Pawn => {
                 the_move.start.0 == the_move.end.0
@@ -165,7 +173,11 @@ impl Board {
                         || ((the_move.start.1 == 1 || the_move.start.1 == 6)
                             && (the_move.start.1 as i8 - the_move.end.1 as i8).abs() == 2))
             }
-            _ => true,
+            Piece::King => (diff_x <= 1 && diff_x <= 1),
+            Piece::Knight => ((diff_x == 1 && diff_y == 2) || (diff_x == 2 && diff_y == 1)),
+            Piece::Rook => (diff_x == 0 || diff_y == 0),
+            Piece::Bishop => (diff_x == diff_y),
+            Piece::Queen => (diff_x == diff_y || (diff_x == 0 || diff_y == 0)),
         }
     }
 

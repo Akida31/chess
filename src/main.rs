@@ -7,7 +7,8 @@ fn main() {
     if let Err(e) = board.move_piece(String::from("D2D4")) {
         println!("Error: {}", e);
     };
-    board.show();if let Err(e) = board.move_piece(String::from("E7E5")) {
+    board.show();
+    if let Err(e) = board.move_piece(String::from("E7E5")) {
         println!("Error: {}", e);
     };
     board.show();

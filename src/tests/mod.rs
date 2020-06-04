@@ -13,6 +13,9 @@ mod tests {
     use super::create_board;
     #[test]
     fn move_not_allowed() {
-        assert_eq!(create_board().move_piece(String::from("E7E5")), Err("move not allowed"));
+        assert_eq!(
+            create_board().move_piece(String::from("E7E5")),
+            Err("move not allowed")
+        );
     }
 }
