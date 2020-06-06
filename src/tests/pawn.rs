@@ -1,24 +1,23 @@
-#[cfg(test)]
 mod tests {
-    use super::super::create_board;
+    use super::super::create_game;
     #[test]
     fn valid() {
-        let mut board = create_board();
-        assert_eq!(board.move_piece(String::from("D2D4")), Ok(()));
+        let mut game = create_game();
+        assert_eq!(game.move_piece(String::from("D2D4")), Ok(()));
     }
     #[test]
     fn invalid() {
-        let mut board = create_board();
+        let mut game = create_game();
         assert_eq!(
-            board.move_piece(String::from("D2D5")),
+            game.move_piece(String::from("D2D5")),
             Err("move not allowed")
         );
         assert_eq!(
-            board.move_piece(String::from("D2E3")),
+            game.move_piece(String::from("D2E3")),
             Err("move not allowed")
         );
         assert_eq!(
-            board.move_piece(String::from("D2D5")),
+            game.move_piece(String::from("D2D5")),
             Err("move not allowed")
         );
     }

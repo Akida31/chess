@@ -1,20 +1,17 @@
 mod pawn;
 
-#[cfg(test)]
-use super::board;
+use super::game;
 
-#[cfg(test)]
-fn create_board() -> board::Board {
-    board::Board::new(String::from("James"), String::from("Jeff"), 15 * 60)
+fn create_game() -> game::Game {
+    game::Game::new(String::from("James"), String::from("Jeff"), 15 * 60)
 }
 
-#[cfg(test)]
 mod tests {
-    use super::create_board;
+    use super::create_game;
     #[test]
     fn move_not_allowed() {
         assert_eq!(
-            create_board().move_piece(String::from("E7E5")),
+            create_game().move_piece(String::from("E7E5")),
             Err("move not allowed")
         );
     }

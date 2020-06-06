@@ -1,7 +1,5 @@
 use std::fmt;
 
-use crate::board::Color::{Black, White};
-
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum Piece {
     King,
@@ -61,13 +59,15 @@ impl Field {
 struct Player {
     name: String,
     remaining_time: u16,
+    color: Color,
 }
 
 impl Player {
-    fn new(name: String, time: u16) -> Player {
+    fn new(name: String, time: u16, color: Color) -> Player {
         Player {
             name,
             remaining_time: time,
+            color,
         }
     }
 }
@@ -84,14 +84,14 @@ impl Move<'_> {
     }
 }
 
-pub struct Board {
+pub struct Game {
     fields: Vec<Vec<Option<Field>>>,
     players: [Player; 2],
     current_player: Color,
 }
 
-impl Board {
-    pub fn new(player_name1: String, player_name2: String, time: u16) -> Board {
+impl Game {
+    pub fn new(player_name1: String, player_name2: String, time: u16) -> Game {
         let mut fields = vec![vec![None; 8]; 8];
         let pieces = vec![
             Piece::Rook,
@@ -114,13 +114,13 @@ impl Board {
             .into_iter()
             .map(|x| Some(Field::new(x, Color::White)))
             .collect();
-        Board {
+        Game {
             fields,
             players: [
-                Player::new(player_name1, time),
-                Player::new(player_name2, time),
+                Player::new(player_name1, time, Color::White),
+                Player::new(player_name2, time, Color::Black),
             ],
-            current_player: White,
+            current_player: Color::White,
         }
     }
 
@@ -154,7 +154,7 @@ impl Board {
             return false;
         }
         let field = &self.fields[the_move.start.1 as usize][the_move.start.0 as usize];
-        if let None = field {
+        if field.is_none() {
             return false;
         }
         let field = field.as_ref().unwrap();
@@ -166,19 +166,56 @@ impl Board {
         if diff_y == 0 && diff_x == 0 {
             return false;
         }
-        match field.piece {
+        if !match field.piece {
             Piece::Pawn => {
                 the_move.start.0 == the_move.end.0
                     && ((the_move.start.1 as i8 - the_move.end.1 as i8).abs() == 1
                         || ((the_move.start.1 == 1 || the_move.start.1 == 6)
                             && (the_move.start.1 as i8 - the_move.end.1 as i8).abs() == 2))
             }
-            Piece::King => (diff_x <= 1 && diff_x <= 1),
+            Piece::King => (diff_x <= 1 && diff_y <= 1),
             Piece::Knight => ((diff_x == 1 && diff_y == 2) || (diff_x == 2 && diff_y == 1)),
             Piece::Rook => (diff_x == 0 || diff_y == 0),
             Piece::Bishop => (diff_x == diff_y),
             Piece::Queen => (diff_x == diff_y || (diff_x == 0 || diff_y == 0)),
+        } {
+            return false;
         }
+        let chessed = self.check_chess();
+        for player in self.players.iter() {
+            if &player.color != the_move.player && chessed == Some(&player.color) {
+                println!("{} is chess!", player.name);
+            }
+        }
+        self.check_chess() != Some(the_move.player)
+    }
+
+    fn check_chess(&self) -> Option<&Color> {
+        for (end_y, row) in self.fields.iter().enumerate() {
+            for (end_x, field) in row.iter().enumerate() {
+                if let Some(field) = field {
+                    if field.piece == Piece::King {
+                        for (start_y, row) in self.fields.iter().enumerate() {
+                            for (start_x, enemy) in row.iter().enumerate() {
+                                if let Some(enemy) = enemy {
+                                    if enemy.color != field.color
+                                        && self.check_move(Move::new(
+                                            &enemy.color,
+                                            (start_x as u8, start_y as u8),
+                                            (end_x as u8, end_y as u8),
+                                        ))
+                                    {
+                                        println!("found");
+                                        return Some(&field.color);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn move_piece(&mut self, the_move: String) -> Result<(), &str> {
@@ -224,8 +261,8 @@ impl Board {
         self.fields[end_y as usize][end_x as usize] = self.fields[start_y][start_x].clone();
         self.fields[start_y][start_x] = None;
         self.current_player = match self.current_player {
-            White => Black,
-            Black => White,
+            Color::White => Color::Black,
+            Color::Black => Color::White,
         };
         Ok(())
     }
