@@ -1,4 +1,6 @@
 use std::fmt;
+use std::ops::Add;
+use std::time::{Duration, SystemTime};
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum Piece {
@@ -11,7 +13,7 @@ enum Piece {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-enum Color {
+pub(crate) enum Color {
     Black,
     White,
 }
@@ -55,15 +57,15 @@ impl Field {
     }
 }
 
-#[derive(Debug)]
-struct Player {
-    name: String,
-    remaining_time: u16,
-    color: Color,
+#[derive(Debug, Clone)]
+pub struct Player {
+    pub(crate) name: String,
+    pub(crate) remaining_time: u64,
+    pub(crate) color: Color,
 }
 
 impl Player {
-    fn new(name: String, time: u16, color: Color) -> Player {
+    fn new(name: String, time: u64, color: Color) -> Player {
         Player {
             name,
             remaining_time: time,
@@ -84,14 +86,29 @@ impl Move<'_> {
     }
 }
 
+#[derive(Clone)]
+pub struct Players {
+    pub(crate) current: Player,
+    waiting: Player,
+}
+
+#[derive(Clone, PartialEq)]
+pub enum GameStatus {
+    Running,
+    Won,
+    Paused,
+}
+
+#[derive(Clone)]
 pub struct Game {
     fields: Vec<Vec<Option<Field>>>,
-    players: [Player; 2],
-    current_player: Color,
+    last_update: u64,
+    status: GameStatus,
+    players: Players,
 }
 
 impl Game {
-    pub fn new(player_name1: String, player_name2: String, time: u16) -> Game {
+    pub fn new(player_name1: String, player_name2: String, time: u64) -> Game {
         let mut fields = vec![vec![None; 8]; 8];
         let pieces = vec![
             Piece::Rook,
@@ -116,19 +133,26 @@ impl Game {
             .collect();
         Game {
             fields,
-            players: [
-                Player::new(player_name1, time, Color::White),
-                Player::new(player_name2, time, Color::Black),
-            ],
-            current_player: Color::White,
+            status: GameStatus::Running,
+            players: Players {
+                current: Player::new(player_name1, time, Color::White),
+                waiting: Player::new(player_name2, time, Color::Black),
+            },
+            last_update: 0,
         }
     }
 
     pub fn show(&self) {
         // TODO show the time of the players
+        let (player1, player2) = if self.players.current.color == Color::White {
+            (self.players.current.name.clone() + "<", self.players.waiting.name.clone())
+        }
+        else {
+            (self.players.waiting.name.clone(), self.players.current.name.clone() + "<")
+        };
         println!(
             "Players:\n  White: {}\n  Black: {}",
-            self.players[0].name, self.players[1].name
+            player1, player2
         );
         println!("Board:\n   ABCDEFGH");
         for (i, row) in self.fields.iter().enumerate() {
@@ -142,7 +166,7 @@ impl Game {
             }
             println!();
         }
-        println!("Current Player: {:?}\n", self.current_player);
+        println!("Current Player: {:?}\n", self.players.current);
     }
 
     fn check_move(&self, the_move: Move) -> bool {
@@ -182,7 +206,7 @@ impl Game {
             return false;
         }
         let chessed = self.check_chess();
-        for player in self.players.iter() {
+        for player in [&self.players.current, &self.players.waiting].iter() {
             if &player.color != the_move.player && chessed == Some(&player.color) {
                 println!("{} is chess!", player.name);
             }
@@ -230,40 +254,54 @@ impl Game {
             Some(c) => c as u8,
             None => return Err("piece not found"),
         };
-        let start_y = match chars.next() {
-            Some(x) => match x.to_digit(10) {
-                Some(c) => (8 - c) as u8,
-                None => return Err("invalid move format"),
-            },
-            None => return Err("invalid move format"),
-        };
+        let start_y = matching(chars.next())?;
         let char = chars.next();
         let end_x = match letters.chars().position(|x| Some(x) == char) {
             Some(c) => c as u8,
             None => return Err("piece not found"),
         };
-        let end_y = match chars.next() {
-            Some(x) => match x.to_digit(10) {
-                Some(c) => (8 - c) as u8,
-                None => return Err("invalid move format"),
-            },
-            None => return Err("invalid move format"),
-        };
-        if !self.check_move(Move::new(
-            &self.current_player,
+        let end_y = matching(chars.next())?;
+        let current_player = if !self.check_move(Move::new(
+            // TODO check the design of check_move
+            &self.players.current.color,
             (start_x, start_y),
             (end_x, end_y),
         )) {
             return Err("move not allowed");
-        }
+        };
         let start_x = start_x as usize;
         let start_y = start_y as usize;
         self.fields[end_y as usize][end_x as usize] = self.fields[start_y][start_x].clone();
         self.fields[start_y][start_x] = None;
-        self.current_player = match self.current_player {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        };
+        let time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH.add(Duration::from_secs(self.last_update)))
+            .unwrap()
+            .as_secs();
+        self.players.current.remaining_time = self.players.current.remaining_time - time;
+        self.status = GameStatus::Running;
+        std::mem::swap(&mut self.players.waiting, &mut self.players.current);
+        self.last_update = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         Ok(())
+    }
+
+    pub fn get_status(&self) -> GameStatus {
+        self.status.clone()
+    }
+
+    pub fn get_players_clone(&self) -> Players {
+        self.players.clone()
+    }
+}
+
+fn matching(inp: Option<char>) -> Result<u8, &'static str> {
+    match inp {
+        Some(x) => match x.to_digit(10) {
+            Some(c) => Ok((8 - c) as u8),
+            None => return Err("invalid move format"),
+        },
+        None => return Err("invalid move format"),
     }
 }
