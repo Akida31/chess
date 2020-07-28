@@ -13,9 +13,18 @@ enum Piece {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub(crate) enum Color {
+pub enum Color {
     Black,
     White,
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            Color::Black => "Black",
+            Color::White => "White",
+        })
+    }
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -59,9 +68,9 @@ impl Field {
 
 #[derive(Debug, Clone)]
 pub struct Player {
-    pub(crate) name: String,
-    pub(crate) remaining_time: u64,
-    pub(crate) color: Color,
+    name: String,
+    remaining_time: u64,
+    color: Color,
 }
 
 impl Player {
@@ -71,6 +80,18 @@ impl Player {
             remaining_time: time,
             color,
         }
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn get_remaining_time(&self) -> u64 {
+        self.remaining_time
+    }
+
+    pub fn get_color(&self) -> Color {
+        self.color.clone()
     }
 }
 
@@ -88,8 +109,14 @@ impl Move<'_> {
 
 #[derive(Clone)]
 pub struct Players {
-    pub(crate) current: Player,
+    current: Player,
     waiting: Player,
+}
+
+impl Players {
+    pub fn get_current(&self) -> Player {
+        self.current.clone()
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -143,17 +170,18 @@ impl Game {
     }
 
     pub fn show(&self) {
-        // TODO show the time of the players
         let (player1, player2) = if self.players.current.color == Color::White {
-            (self.players.current.name.clone() + "<", self.players.waiting.name.clone())
-        }
-        else {
-            (self.players.waiting.name.clone(), self.players.current.name.clone() + "<")
+            (
+                String::from("> ") + &self.players.current.name.clone() + "<",
+                String::from("  ") + &self.players.waiting.name.clone(),
+            )
+        } else {
+            (
+                String::from("  ") + &self.players.waiting.name.clone(),
+                String::from("> ") + &self.players.current.name.clone() + "<",
+            )
         };
-        println!(
-            "Players:\n  White: {}\n  Black: {}",
-            player1, player2
-        );
+        println!("Players:\n  White: {}\n  Black: {}", player1, player2);
         println!("Board:\n   ABCDEFGH");
         for (i, row) in self.fields.iter().enumerate() {
             print!("{}. ", 8 - i);
@@ -166,7 +194,7 @@ impl Game {
             }
             println!();
         }
-        println!("Current Player: {:?}\n", self.players.current);
+        println!();
     }
 
     fn check_move(&self, the_move: Move) -> bool {
@@ -261,7 +289,8 @@ impl Game {
             None => return Err("piece not found"),
         };
         let end_y = matching(chars.next())?;
-        let current_player = if !self.check_move(Move::new(
+        // TODO remove this var?
+        let _current_player = if !self.check_move(Move::new(
             // TODO check the design of check_move
             &self.players.current.color,
             (start_x, start_y),
